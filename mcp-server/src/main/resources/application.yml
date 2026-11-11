@@ -3,6 +3,8 @@ server:
   port: 9099
 
 spring:
+  config:
+    import: "optional:file:${RAGENT_LOCAL_ENV_FILE:./.env.local}[.properties]"
   application:
     name: ragent-mcp-server
 

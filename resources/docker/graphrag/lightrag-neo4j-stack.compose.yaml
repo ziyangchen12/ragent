@@ -18,15 +18,15 @@ services:
       context: .
       dockerfile: neo4j-gds.Dockerfile
     ports:
-      - "7474:7474"   # HTTP Browser
-      - "7687:7687"   # Bolt
+      - "127.0.0.1:7474:7474"   # HTTP Browser
+      - "127.0.0.1:7687:7687"   # Bolt
     environment:
       NEO4J_AUTH: "${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}"
       # APOC 已随 Neo4j 镜像提供；GDS 由 neo4j-gds.Dockerfile 固定，不再放入此运行时下载列表
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
-      NEO4J_server_memory_heap_max__size: "1G"
-      NEO4J_server_memory_pagecache_size: "512m"
+      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP_MAX:-1G}"
+      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-512m}"
     volumes:
       - neo4j-data:/data
       - neo4j-logs:/logs
@@ -43,7 +43,7 @@ services:
     # ⚠️ 生产务必 pin 到已验证的具体 tag（社区仓库存在超前日期版本 / 虚构模型名，勿长期用 latest）
     image: ghcr.io/hkuds/lightrag:${LIGHTRAG_IMAGE_TAG:-latest}
     ports:
-      - "9621:9621"
+      - "127.0.0.1:9621:9621"
     # Docker Desktop / IDEA 可能独立重启容器，绕过 depends_on 的就绪顺序。
     # 将等待门闩放在 LightRAG 容器内部，确保 Neo4j Bolt 就绪后才启动应用。
     entrypoint:

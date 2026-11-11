@@ -40,6 +40,25 @@ Docker Compose 默认把首个 Compose 文件所在目录作为项目目录，�
 
 首次拉起会构建本地 `ragent/neo4j-gds:5.26-2.13.11` 镜像，并下载一次约 62 MB 的 GDS JAR；该步骤可能需要一到几分钟。GDS 随后固化在镜像层中，普通启动与重启不再访问插件下载站。`docker compose ps` 两个服务均 `healthy` 后即就绪。
 
+如果 PostgreSQL 也运行在本机 Docker，且 LightRAG 经 `host.docker.internal:5432` 连接时出现 `unexpected connection_lost`，可让两个容器直接通信。首次启动编排创建 `lightrag-net` 后，执行 `docker network connect lightrag-net postgres`（`postgres` 为已有数据库容器名），把本目录 `.env` 的 `POSTGRES_HOST` 设为 `postgres`，再执行 `docker compose -f lightrag-neo4j-stack.compose.yaml up -d --no-deps lightrag`。现有 PostgreSQL 会继续运行；如果以后重建其容器，需要重新接入这个网络。
+
+### Windows 本机运行 LightRAG
+
+若 Docker 内访问百炼出现 TLS 握手失败，但 Windows 能正常直连，可把 LightRAG 运行在 Windows 上。Neo4j、PostgreSQL 继续在 Docker 中运行。Python 服务读取本目录的 `.env`，沿用相同的数据库和图谱，监听 `127.0.0.1:9621`。以下命令在仓库根目录运行。
+
+若数据库使用不同的宿主机端口，在本目录的 `.env` 设置 `POSTGRES_HOST_PORT` 为实际发布端口，例如 `15432`。`POSTGRES_PORT` 继续用于容器间连接。
+
+```powershell
+docker compose -f resources/docker/graphrag/lightrag-neo4j-stack.compose.yaml stop lightrag
+docker compose -f resources/docker/graphrag/lightrag-neo4j-stack.compose.yaml up -d neo4j
+# 首次创建环境时使用 Python 3.12
+py -3.12 -m venv .output/lightrag-venv
+.output/lightrag-venv/Scripts/python.exe -m pip install 'lightrag-hku[api]==1.5.7' asyncpg pgvector neo4j truststore
+# 之后启动只需执行以下两行
+$env:PYTHONUTF8 = '1'
+.output/lightrag-venv/Scripts/python.exe resources/docker/graphrag/start-lightrag-local.py
+```
+
 ## 验证
 
 | 检查项 | 方式 |
@@ -62,21 +81,16 @@ rag:
     lightrag:
       base-url: http://127.0.0.1:9621     # 本机默认；后端与本栈不同机时改为对应地址
       query-mode: hybrid                  # 只回图结构证据，与向量 / 关键词通道正交（可选 naive / local / global / hybrid / mix）
-    embedding-model: qwen-emb-8b          # 与 Compose 的百炼 text-embedding-v4 配置一致
-    ingestion:
-      async: true
-      global-workspace: false
+    embedding-model: text-embedding-v4    # 管理端展示的模型名，与 Compose 保持一致
   search:
     channels:
       graph:
         enabled: true                     # 检索时并入图谱通道
-        mode: both                        # intent 命中 KB 才走 / global 全量走 / both 都走
-        top-k-multiplier: 2
 ```
 
-后端一侧无需 api-key：本地不启用鉴权，`rag.graph.lightrag` 无 `api-key` 字段，客户端不发送鉴权头。
+默认只在本机访问 LightRAG，后端可留空 `rag.graph.lightrag.api-key`。启用了 LightRAG 鉴权时填写该项，客户端随请求发送 `X-API-Key`。
 
-开启后，向量写入经装饰器 `GraphSyncingVectorStoreService` 自动同步图谱（摄取 / 重建 / 删除全路径覆盖），删除知识库时 MQ 消费者按 `{collectionName}_` 前缀清理对应图谱数据，均为 best-effort，失败不阻断主链路。
+开启后，新增或按整篇重建的文档会由 `GraphSyncingVectorStoreService` 提交给 LightRAG。已有文档需要单独提交或重建才能在图谱中看到。整篇删除会同步清理图谱，单独编辑分块后需要重建整篇才能更新图谱。图谱同步失败会记入日志，原向量写入仍然有效。
 
 ## 注意事项
 
@@ -85,5 +99,5 @@ rag:
 - Compose 中的账号密码只面向本机开发，请勿把当前端口和固定密码直接用于生产或暴露到公网
 - **镜像 tag 建议 pin 到已验证的具体版本**，勿长期用 `latest`（社区仓库历史上出现过超前日期版本 / 虚构模型名）
 - LightRAG 与后端**共用宿主机 PostgreSQL**：卸载本栈只需 `docker compose down`，如需彻底清库再 `docker compose down -v`（删 Neo4j 数据卷）并手动清理 PG 中 `LIGHTRAG_*` 表
-- 单 LightRAG 实例即单图（workspace 为实例级）；跨 KB 的隔离子图靠结果侧按 `file_path` 归属过滤实现，属后续阶段
+- 同一 LightRAG 实例中的知识库共享图，检索通道按返回的 `file_path` 识别证据所属文档和知识库。
 - 内存偏紧的机器可下调 compose 中 Neo4j 的 `server_memory_heap_max__size` / `pagecache_size`

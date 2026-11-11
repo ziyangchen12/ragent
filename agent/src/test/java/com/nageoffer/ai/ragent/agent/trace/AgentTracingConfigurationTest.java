@@ -17,6 +17,7 @@
 
 package com.nageoffer.ai.ragent.agent.trace;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.info.ProjectInfoAutoConfiguration;
 import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.bind.PropertySourcesPlaceholdersResolver;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.info.BuildProperties;
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * 服务身份走 resource 不走 span 属性：它描述的是「谁产出的这条链路」，逐 span 重复一遍纯属浪费
@@ -174,6 +177,26 @@ class AgentTracingConfigurationTest {
         assertThat(bound.isEnabled()).isFalse();
     }
 
+    @Test
+    void shouldRegisterSdkBeforeElasticsearchReadsGlobalTelemetry() {
+        try {
+            new ApplicationContextRunner()
+                    .withBean(ElasticsearchClient.class, () -> {
+                        // The Elasticsearch transport reads this even before it sends its first request.
+                        GlobalOpenTelemetry.get();
+                        return mock(ElasticsearchClient.class);
+                    })
+                    .withConfiguration(AutoConfigurations.of(ProjectInfoAutoConfiguration.class))
+                    .withUserConfiguration(AgentTraceProperties.class, AgentTracingConfiguration.class)
+                    .withPropertyValues("ragent.engine.type=agent", "agent.trace.enabled=true",
+                            "agent.trace.public-key=pk-test", "agent.trace.secret-key=sk-test",
+                            "spring.application.name=ragent-test-service")
+                    .run(context -> assertThat(context).hasSingleBean(OpenTelemetrySdk.class));
+        } finally {
+            GlobalOpenTelemetry.resetForTest();
+        }
+    }
+
     /**
      * 不经过 yaml 绑定时也要遵守同一默认契约，避免不同启动路径得到一套有内容、一套空节点的 trace
      */
@@ -196,7 +219,7 @@ class AgentTracingConfigurationTest {
         }
         MutablePropertySources holder = new MutablePropertySources();
         sources.forEach(holder::addLast);
-        return new Binder(ConfigurationPropertySources.from(holder))
+        return new Binder(ConfigurationPropertySources.from(holder), new PropertySourcesPlaceholdersResolver(holder))
                 .bind("agent.trace", AgentTraceProperties.class)
                 .orElseThrow(() -> new AssertionError("基础配置里没有 agent.trace 这一段"));
     }

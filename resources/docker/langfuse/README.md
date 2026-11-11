@@ -5,10 +5,10 @@
 ## 启动
 
 ```bash
-docker compose -f langfuse-stack-v4.compose.yaml up -d
+docker compose --env-file .env.local -f langfuse-stack-v4.compose.yaml up -d
 ```
 
-六个容器全部 healthy 后，浏览器打开 <http://localhost:3000>，用 `admin@ragent.dev` / `admintrace` 登录，项目 `ragent-service` 已经建好。
+在本目录运行命令。本机的 `.env.local` 保存首次部署时生成的随机凭据，且已被 Git 忽略。Web 就绪后打开 <http://localhost:3000>，使用 `admin@ragent.dev` 和其中的 `LANGFUSE_ADMIN_PASSWORD` 登录，选择项目 `ragent-service`。重复启动同一套数据时请沿用同一份凭据。首次体验仓库内置的本地演示值时可省略 `--env-file .env.local`，对应的演示密码是 `admintrace`。
 
 ## 组件与端口
 
@@ -36,7 +36,7 @@ lsof -i :9090 -i :9099 -i :5432 -i :6379 -i :9000 -i :9001
 
 ## 应用侧接入
 
-`application.yaml` 里的追踪总开关默认关闭、内容采集默认开启，密钥已经和编排里的 `LANGFUSE_INIT_*` 对齐。起栈后只需打开追踪：
+`application.yaml` 里的追踪总开关默认关闭、内容采集默认开启。使用独立凭据时，将项目根目录 `.env.local` 里的 `LANGFUSE_PUBLIC_KEY` 和 `LANGFUSE_SECRET_KEY` 设为编排所用的同名值，并开启追踪：
 
 ```bash
 AGENT_TRACE_ENABLED=true \

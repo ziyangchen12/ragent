@@ -18,6 +18,7 @@
 package com.nageoffer.ai.ragent.agent.trace;
 
 import cn.hutool.core.util.StrUtil;
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.nageoffer.ai.ragent.agent.config.ConditionalOnAgentEngine;
 import io.agentscope.core.tracing.OtelTracingMiddleware;
 import io.opentelemetry.api.GlobalOpenTelemetry;
@@ -35,6 +36,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
+import org.springframework.boot.autoconfigure.AbstractDependsOnBeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.context.annotation.Bean;
@@ -88,6 +91,13 @@ public class AgentTracingConfiguration {
      * 构建期由 spring-boot-maven-plugin 写进包里的版本，没走 Maven 打包（IDE 直接起）时 bean 缺席
      */
     private final ObjectProvider<BuildProperties> buildProperties;
+
+    // Elasticsearch 的 transport 构造时读取 GlobalOpenTelemetry，必须让它先拿到 Agent 的 SDK。
+    @Bean
+    public static BeanFactoryPostProcessor elasticsearchTracingDependency() {
+        return new AbstractDependsOnBeanFactoryPostProcessor(ElasticsearchClient.class, OpenTelemetrySdk.class) {
+        };
+    }
 
     /**
      * 声明成 OpenTelemetrySdk 而非 OpenTelemetry：关机时要 close 落最后一批，也给别处的

@@ -5,7 +5,7 @@ services:
     image: apache/rocketmq:5.2.0
     container_name: rmqnamesrv
     ports:
-      - "9876:9876"
+      - "19876:9876"
     environment:
       JAVA_OPT_EXT: "-Xms256m -Xmx400m"
     command: sh mqnamesrv
