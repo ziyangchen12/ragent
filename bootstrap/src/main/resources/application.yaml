@@ -48,8 +48,9 @@ agent:
       - name: default
         url: http://localhost:9099
   chat:
-    provider: deepseek   # 引用 ai.providers 下的供应商，取其 url / api-key / endpoints.chat
-    model: deepseek-flash    # 直接传给 OpenAI 兼容端点的模型名
+    provider: deepseek
+    model: deepseek-flash
+    reasoning-effort:
   max-iters: 10
   max-retries: 1
   sse-timeout-ms: 900000
@@ -101,7 +102,7 @@ rag:
       search-analyzer: ik_smart
 
   graph:
-    type: none  # 设为 lightrag 后同步整篇文档并支持可视化；rag.search.channels.graph.enabled 控制问答召回
+    type: none  # 图谱后端总开关，可选 none / lightrag。lightrag 时向量写入同步维护图谱、后台可视化可用；是否参与检索由 rag.search.channels.graph.enabled 单独控制
     lightrag:
       base-url: http://127.0.0.1:9621
       query-mode: hybrid
@@ -228,6 +229,16 @@ ai:
       api-key: ${DEEPSEEK_API_KEY:}
       endpoints:
         chat: /v1/chat/completions
+    hunyuan:
+      url: https://tokenhub.tencentmaas.com
+      api-key: ${HUNYUAN_API_KEY:}
+      endpoints:
+        chat: /v1/chat/completions
+    kimi:
+      url: https://api.moonshot.cn
+      api-key: ${MOONSHOT_API_KEY:}
+      endpoints:
+        chat: /v1/chat/completions
 
   selection:
     failure-threshold: 2
@@ -256,6 +267,14 @@ ai:
       - id: deepseek-flash
         provider: deepseek
         model: deepseek-flash
+        supports-thinking: true
+      - id: hy4
+        provider: hunyuan
+        model: hy4
+        supports-thinking: true
+      - id: kimi-k3.1-pro
+        provider: kimi
+        model: kimi-k3.1-pro
         supports-thinking: true
 
     default-tier: standard

@@ -86,11 +86,14 @@ rag:
     channels:
       graph:
         enabled: true                     # 检索时并入图谱通道
+    fusion:
+      channel-weights:
+        graph: 0.8                        # 图谱证据在加权 RRF 里的权重
 ```
 
 默认只在本机访问 LightRAG，后端可留空 `rag.graph.lightrag.api-key`。启用了 LightRAG 鉴权时填写该项，客户端随请求发送 `X-API-Key`。
 
-开启后，新增或按整篇重建的文档会由 `GraphSyncingVectorStoreService` 提交给 LightRAG。已有文档需要单独提交或重建才能在图谱中看到。整篇删除会同步清理图谱，单独编辑分块后需要重建整篇才能更新图谱。图谱同步失败会记入日志，原向量写入仍然有效。
+`rag.graph.type=lightrag` 时，新增或按整篇重建的文档会由 `GraphSyncingVectorStoreService` 提交给 LightRAG。已有文档需要单独提交或重建才能在图谱中看到。整篇删除会同步清理图谱，单独编辑或删除分块后需要重建整篇才能更新图谱。删除知识库时，MQ 消费者解析图谱文档来源标识，按完整知识库名匹配并清理对应数据。图谱同步失败会记入日志，原向量写入仍然有效。
 
 ## 注意事项
 
